@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package jobforge.v1;
+
+option csharp_namespace = "JobForge.Orchestrator.Grpc";
+
+service ExecutionStatus {
+  rpc Report(stream StatusReport) returns (stream ReportAck);
+}
+
+message StatusReport {
+  string execution_id = 1;
+  int32 attempt = 2;
+  string status = 3;
+  int32 http_status = 4;
+  string error = 5;
+  int64 duration_ms = 6;
+}
+
+message ReportAck {
+  string execution_id = 1;
+  bool persisted = 2;
+}

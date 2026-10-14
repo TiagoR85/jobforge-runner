@@ -6,6 +6,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Protobuf Include="..\..\protos\jobforge\v1\status.proto" GrpcServices="Client" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Grpc.Net.Client" />
