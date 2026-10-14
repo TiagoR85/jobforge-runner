@@ -1,4 +1,5 @@
 using JobForge.Runner.Configuration;
+using JobForge.Runner.Dedup;
 using JobForge.Runner.Health;
 using JobForge.Runner.Webhook;
 using StackExchange.Redis;
@@ -20,6 +21,9 @@ builder.Services.AddHealthChecks()
 builder.Services.AddHttpClient("webhook");
 builder.Services.AddSingleton<IWebhookExecutor>(sp =>
     new WebhookExecutor(sp.GetRequiredService<IHttpClientFactory>().CreateClient("webhook")));
+builder.Services.AddSingleton<IDedup>(sp => new RedisDedup(
+    sp.GetRequiredService<IConnectionMultiplexer>(),
+    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RunnerOptions>>().Value.DedupTtlSeconds));
 
 var app = builder.Build();
 app.MapGet("/", () => "jobforge-runner");
