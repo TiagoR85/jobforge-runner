@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    uses: TiagoR85/ci-pipeline-templates/.github/workflows/reusable-dotnet-ci.yml@v1
+    with:
+      test-project: tests/JobForge.Runner.Tests/JobForge.Runner.Tests.csproj
+      dotnet-version: "10.0.x"
+      coverage-threshold: "80"
+      pre-restore-command: pwsh ./scripts/fetch-proto.ps1 -Ref v1.0.0
+
+  docker-scan-runner:
+    uses: TiagoR85/ci-pipeline-templates/.github/workflows/reusable-docker-scan.yml@v1
+    with:
+      image-name: jobforge-runner
