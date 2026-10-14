@@ -1,6 +1,7 @@
 using JobForge.Runner.Configuration;
 using JobForge.Runner.Dedup;
 using JobForge.Runner.Health;
+using JobForge.Runner.Processing;
 using JobForge.Runner.Reporting;
 using JobForge.Runner.Webhook;
 using StackExchange.Redis;
@@ -27,6 +28,10 @@ builder.Services.AddSingleton<IDedup>(sp => new RedisDedup(
     sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RunnerOptions>>().Value.DedupTtlSeconds));
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IDeadLetterPublisher>(sp => new DeadLetterPublisher(
+    builder.Configuration["Kafka:BootstrapServers"]!,
+    builder.Configuration["Kafka:DeadTopic"] ?? "jobs.dead"));
+builder.Services.AddSingleton<MessageProcessor>();
 builder.Services.AddSingleton(_ => Grpc.Net.Client.GrpcChannel.ForAddress(
     builder.Configuration["Orchestrator:GrpcUrl"]!,
     new Grpc.Net.Client.GrpcChannelOptions { DisposeHttpClient = true }));
