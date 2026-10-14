@@ -5,10 +5,14 @@ using JobForge.Runner.Health;
 using JobForge.Runner.Processing;
 using JobForge.Runner.Reporting;
 using JobForge.Runner.Webhook;
+using NLog.Web;
 using OpenTelemetry.Metrics;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Host.UseNLog();
 
 RequiredConfig.Ensure(builder.Configuration,
     "ConnectionStrings:Redis", "Kafka:BootstrapServers", "Orchestrator:GrpcUrl");
