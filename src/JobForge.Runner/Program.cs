@@ -1,6 +1,7 @@
 using JobForge.Runner.Configuration;
 using JobForge.Runner.Dedup;
 using JobForge.Runner.Health;
+using JobForge.Runner.Reporting;
 using JobForge.Runner.Webhook;
 using StackExchange.Redis;
 
@@ -24,6 +25,14 @@ builder.Services.AddSingleton<IWebhookExecutor>(sp =>
 builder.Services.AddSingleton<IDedup>(sp => new RedisDedup(
     sp.GetRequiredService<IConnectionMultiplexer>(),
     sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RunnerOptions>>().Value.DedupTtlSeconds));
+
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(_ => Grpc.Net.Client.GrpcChannel.ForAddress(
+    builder.Configuration["Orchestrator:GrpcUrl"]!,
+    new Grpc.Net.Client.GrpcChannelOptions { DisposeHttpClient = true }));
+builder.Services.AddSingleton<GrpcStatusReporter>();
+builder.Services.AddSingleton<IStatusReporter>(sp => sp.GetRequiredService<GrpcStatusReporter>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<GrpcStatusReporter>());
 
 var app = builder.Build();
 app.MapGet("/", () => "jobforge-runner");
