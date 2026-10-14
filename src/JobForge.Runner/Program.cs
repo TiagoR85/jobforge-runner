@@ -1,5 +1,6 @@
 using JobForge.Runner.Configuration;
 using JobForge.Runner.Health;
+using JobForge.Runner.Webhook;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,10 @@ builder.Services.AddHealthChecks()
     .AddCheck("self", static () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<RedisHealthCheck>("redis", tags: ["ready"])
     .AddCheck<KafkaHealthCheck>("kafka", tags: ["ready"]);
+
+builder.Services.AddHttpClient("webhook");
+builder.Services.AddSingleton<IWebhookExecutor>(sp =>
+    new WebhookExecutor(sp.GetRequiredService<IHttpClientFactory>().CreateClient("webhook")));
 
 var app = builder.Build();
 app.MapGet("/", () => "jobforge-runner");
