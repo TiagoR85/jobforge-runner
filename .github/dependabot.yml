@@ -1,0 +1,15 @@
+# Portfolio CI policy: automated dependency updates (spec s9)
+version: 2
+updates:
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      schedule:
+        interval: "weekly"
+    - package-ecosystem: "nuget"
+      directory: "/"
+      schedule:
+        interval: "weekly"
+    - package-ecosystem: "docker"
+      directory: "/"
+      schedule:
+        interval: "weekly"
