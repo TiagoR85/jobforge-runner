@@ -2,12 +2,13 @@
 from pathlib import Path
 
 from ..model import Relatorio
-from . import endpoints, estrutura, segredos
+from . import endpoints, estrutura, segredos, stack
 
 REGRAS = (
     ("readme", estrutura.readme),
     ("secoes", estrutura.secoes_vazias),
     ("versao", estrutura.versao),
+    ("stack", stack.verificar),
     ("segredos", segredos.verificar),
     ("endpoints", endpoints.verificar),
 )

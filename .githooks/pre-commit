@@ -3,4 +3,7 @@
 # Escape consciente: git commit --no-verify
 PY=python
 command -v python >/dev/null 2>&1 || PY=python3
-exec "$PY" .githooks/check_docs.py
+"$PY" .githooks/check_docs.py || exit 1
+if [ -f .githooks/pre-commit.local ]; then
+    exec sh .githooks/pre-commit.local
+fi

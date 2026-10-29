@@ -14,7 +14,7 @@ PADRAO = {
         "**/node_modules/**", "**/bin/**", "**/obj/**", "**/.git/**",
     ],
     "regras": {"readme": True, "secoes": True, "versao": True,
-               "segredos": True, "endpoints": True},
+               "stack": True, "segredos": True, "endpoints": True},
     "status": None,
     "changelog": None,
     "stack": None,
@@ -32,6 +32,9 @@ def carregar(raiz: Path) -> dict:
         for chave, valor in dados.items():
             if chave == "regras":
                 cfg["regras"].update(valor or {})
+            elif chave == "ignore":
+                # aditivo: o repo acrescenta exclusões, não perde os padrões
+                cfg["ignore"] = list(dict.fromkeys(cfg["ignore"] + (valor or [])))
             else:
                 cfg[chave] = valor
     return cfg
