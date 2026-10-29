@@ -39,6 +39,11 @@ def instalar(raiz: Path, silencioso: bool = False) -> int:
     shutil.copytree(PACOTE, destino,
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
 
+    # O hook roda Python DENTRO de .githooks/doccheck/ e o próprio git add
+    # .githooks engoliria o .pyc gerado — o ignore nasce junto com o vendor.
+    (destino / ".gitignore").write_text("__pycache__/\n*.py[cod]\n",
+                                         encoding="utf-8", newline="\n")
+
     (githooks / "check_docs.py").write_text(BOOTSTRAP, encoding="utf-8", newline="\n")
 
     # hook que já existia (e não é nosso) é preservado e executado depois:
