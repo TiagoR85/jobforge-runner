@@ -24,6 +24,7 @@ MAX_DOC = 8000
 MAX_DOCS = 6
 MAX_CODIGO = 6
 MAX_CODIGO_TAM = 4000
+MAX_TOKENS = 8000     # teto de saída: previsível > completo (override: DOCCHECK_IA_MAX_TOKENS)
 LIMITE_MAX_USD = 0.50
 VIVAS = ("README.md", "MANUAL.md", "manual.md", "STATUS.md", "status.md")
 
@@ -230,12 +231,16 @@ def revisar(raiz: Path, ref: str = "HEAD~1", usar_ia: bool = False,
         return saida
 
     enviar = transporte or _post
+    teto_tokens = int(env.get("DOCCHECK_IA_MAX_TOKENS") or MAX_TOKENS)
     payload = {"model": modelo or cfg["modelo"], "temperature": 0,
+               "max_tokens": teto_tokens,
                "messages": [{"role": "user", "content": prompt}]}
     resposta = enviar(cfg["url"], payload, cfg["chave"])
     escolha = (resposta.get("choices") or [{}])[0]
     uso = resposta.get("usage") or {}
     saida.update(usou_ia=True,
                  resposta=(escolha.get("message") or {}).get("content", "").strip(),
-                 uso=uso, custo_usd=custo_usd(uso, env), modelo=payload["model"])
+                 uso=uso, custo_usd=custo_usd(uso, env), modelo=payload["model"],
+                 truncada=escolha.get("finish_reason") == "length",
+                 max_tokens=teto_tokens)
     return saida

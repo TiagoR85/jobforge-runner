@@ -92,6 +92,9 @@ def cmd_review(args) -> int:
               f"{uso.get('prompt_tokens', 0)} in / "
               f"{uso.get('completion_tokens', 0)} out · "
               f"US$ {resultado['custo_usd']:.6f})")
+        if resultado.get("truncada"):
+            print(f"- resposta TRUNCADA em {resultado.get('max_tokens')} tokens: "
+                  "aumente DOCCHECK_IA_MAX_TOKENS e rode de novo")
     elif not args.ia:
         print("\ncontexto pronto — rode com --ia ou use --json para levar a outro modelo")
     return 0
