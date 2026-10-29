@@ -14,6 +14,7 @@ Config por ambiente (nada no repo):
 """
 import json
 import os
+import re
 import subprocess
 import urllib.request
 from pathlib import Path
@@ -21,11 +22,29 @@ from pathlib import Path
 MAX_DIFF = 12000
 MAX_DOC = 8000
 MAX_DOCS = 6
+MAX_CODIGO = 6
+MAX_CODIGO_TAM = 4000
 LIMITE_MAX_USD = 0.50
 VIVAS = ("README.md", "MANUAL.md", "manual.md", "STATUS.md", "status.md")
 
-INSTRUCAO = """Você revisa documentação técnica. Recebe um diff de código e o
-conteúdo atual das principais documentações do repositório (README, MANUAL, STATUS).
+# Extensões que a doc pode citar e que a auditoria trata como código/config
+EXTENSOES_CODIGO = (".py", ".cs", ".js", ".ts", ".jsx", ".tsx", ".go", ".java", ".rs",
+                    ".rb", ".php", ".sh", ".ps1", ".razor", ".cshtml", ".astro",
+                    ".html", ".css", ".yml", ".yaml", ".sql")
+# Pontos de entrada que a auditoria olha mesmo sem a doc citar o caminho
+CONHECIDOS = ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml",
+              "Program.cs", "app.py", "main.py", "index.html", "package.json",
+              "Dockerfile", "requirements.txt", "pyproject.toml")
+_PASTAS_LIXO = {".git", ".githooks", "__pycache__", "node_modules", "bin", "obj",
+                "venv", ".venv", "dist", "build", "target", ".next"}
+_CAMINHO = re.compile(
+    r"[\w./\\-]+(?:" + "|".join(e.lstrip(".") for e in EXTENSOES_CODIGO) + r")\b",
+    re.IGNORECASE)
+
+INSTRUCAO = """Você revisa documentação técnica. Recebe um diff de código, o
+conteúdo atual das principais documentações do repositório (README, MANUAL, STATUS)
+e recortes de arquivos de código (caminhos citados na doc, pontos de entrada e
+arquivos alterados recentemente).
 
 Liste APENAS divergências entre o que a documentação afirma e o que o código faz —
 inclusive quando o código mudou e a doc não foi atualizada. Formato de cada item,
@@ -49,6 +68,61 @@ def docs_afetados(raiz: Path, ref: str) -> list[Path]:
     return [Path(n) for n in nomes if n.lower().endswith(".md") and (raiz / n).is_file()]
 
 
+def _fora_do_escopo(raiz: Path, caminho: Path) -> bool:
+    """True se escapa da raiz ou parou em pasta de vendor/build."""
+    try:
+        rel = caminho.resolve().relative_to(raiz.resolve())
+    except ValueError:
+        return True
+    return any(part in _PASTAS_LIXO for part in rel.parts[:-1])
+
+
+def _procurar(raiz: Path, nome: str) -> Path | None:
+    """rglob com poda: não entra em node_modules/.git nem varrer build do mundo."""
+    for pasta, subpastas, arquivos in os.walk(raiz):
+        subpastas[:] = [s for s in subpastas if s not in _PASTAS_LIXO]
+        if nome in arquivos:
+            return Path(pasta) / nome
+    return None
+
+
+def arquivos_codigo(raiz: Path, texto_docs: str) -> list[Path]:
+    """Arquivos de código para o contexto: 1) citados na doc, 2) pontos de
+    entrada conhecidos, 3) modificados recentemente — fechando o cenário B
+    (doc muda sozinha e o código não está no diff)."""
+    escolhidos: list[Path] = []
+
+    def add(caminho: Path) -> None:
+        ext_ok = (caminho.suffix.lower() in EXTENSOES_CODIGO
+                  or caminho.name in CONHECIDOS)
+        if (not ext_ok or caminho.suffix.lower() == ".md"
+                or not caminho.is_file() or _fora_do_escopo(raiz, caminho)):
+            return
+        if caminho not in escolhidos:
+            escolhidos.append(caminho)
+
+    for token in _CAMINHO.findall(texto_docs):
+        token = token.strip("`\"'(),;:").lstrip("./")
+        partes = Path(token).parts
+        if not token or Path(token).is_absolute() or ".." in partes:
+            continue
+        add(raiz / token)
+
+    for nome in CONHECIDOS:
+        if len(escolhidos) >= MAX_CODIGO:
+            break
+        alvo = raiz / nome if (raiz / nome).is_file() else _procurar(raiz, nome)
+        if alvo:
+            add(alvo)
+
+    for linha in _git(raiz, "log", "--name-only", "-8").splitlines():
+        if len(escolhidos) >= MAX_CODIGO:
+            break
+        add(raiz / linha.strip())
+
+    return escolhidos[:MAX_CODIGO]
+
+
 def montar_contexto(raiz: Path, ref: str = "HEAD~1") -> dict:
     from .config import carregar
     from .rules import rodar
@@ -65,11 +139,18 @@ def montar_contexto(raiz: Path, ref: str = "HEAD~1") -> dict:
         texto = (raiz / rel).read_text(encoding="utf-8", errors="ignore")
         trechos.append((rel.as_posix(), texto[:MAX_DOC]))
 
+    texto_docs = "\n".join(t for _, t in trechos)
+    codigos = []
+    for rel in arquivos_codigo(raiz, texto_docs):
+        texto = (raiz / rel).read_text(encoding="utf-8", errors="ignore")
+        codigos.append((rel.relative_to(raiz).as_posix(), texto[:MAX_CODIGO_TAM]))
+
     rel_ = rodar(raiz, carregar(raiz))
     return {
         "ref": ref,
         "diff": _git(raiz, "diff", f"{ref}..HEAD", limite=MAX_DIFF),
         "docs": trechos,
+        "codigo": codigos,
         "achados": [str(a) for a in rel_.achados],
     }
 
@@ -92,6 +173,8 @@ def montar_prompt(contexto: dict) -> str:
               "\n\n## Diff\n```diff\n", contexto["diff"], "\n```"]
     for nome, texto in contexto["docs"]:
         partes += [f"\n\n## Doc: {nome}\n```markdown\n", texto, "\n```"]
+    for nome, texto in contexto.get("codigo", []):
+        partes += [f"\n\n## Código: {nome}\n```\n", texto, "\n```"]
     return "".join(partes)
 
 
@@ -108,7 +191,9 @@ def custo_usd(uso: dict, env=None) -> float:
     return round(total / 1_000_000, 6)
 
 
-def _post(url: str, payload: dict, chave: str, timeout: int = 60) -> dict:
+def _post(url: str, payload: dict, chave: str, timeout: int = 180) -> dict:
+    # 180s: contexto grande (docs + recortes de código) faz o provedor pensar
+    # mais que os 60s originais — medido no youtube-gemini-pipeline (B3).
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json",
@@ -125,7 +210,9 @@ def revisar(raiz: Path, ref: str = "HEAD~1", usar_ia: bool = False,
     prompt = montar_prompt(contexto)
     saida = {"ref": ref, "usou_ia": False, "resposta": None, "uso": {},
              "custo_usd": 0.0, "achados": contexto["achados"],
-             "docs": [nome for nome, _ in contexto["docs"]], "contexto": prompt}
+             "docs": [nome for nome, _ in contexto["docs"]],
+             "codigo": [nome for nome, _ in contexto["codigo"]],
+             "contexto": prompt}
 
     if not usar_ia:
         return saida
