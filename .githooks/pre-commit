@@ -1,6 +1,5 @@
 #!/bin/sh
-# Documentação inconsistente bloqueia o commit (versão STATUS x CHANGELOG,
-# seção vazia no MANUAL, segredo em .md). Instalação: core.hooksPath=.githooks
+# doccheck: documentacao x codigo. Instalacao: core.hooksPath=.githooks
 # Escape consciente: git commit --no-verify
 PY=python
 command -v python >/dev/null 2>&1 || PY=python3
