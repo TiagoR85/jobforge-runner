@@ -6,7 +6,7 @@ RUN dotnet restore "src/JobForge.Runner/JobForge.Runner.csproj"
 COPY . .
 RUN dotnet publish "src/JobForge.Runner/JobForge.Runner.csproj" -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
